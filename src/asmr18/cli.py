@@ -6,7 +6,7 @@ from asmr18.database import DownloadDB
 from asmr18.logger import Logger
 from asmr18.utils import check_for_updates,create_archive,format_bytes,format_time
 init(autoreset=True)
-__version__="0.0.3"
+__version__="0.0.5"
 CONFIG_DIR=Path.home()/".asmr18"
 CONFIG_FILE=CONFIG_DIR/"config.yaml"
 def load_config()->dict:
