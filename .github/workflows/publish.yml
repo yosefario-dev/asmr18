@@ -293,14 +293,14 @@ jobs:
           ### 📦 Installation Options
 
           #### Option 1: pip (Recommended)
-```bash
+          ```bash
           pip install asmr18
-```
+          ```
 
           #### Option 2: Quick Install Script (Linux/macOS)
-```bash
+          ```bash
           curl -sSL https://raw.githubusercontent.com/${{ github.repository }}/main/install.sh | bash
-```
+          ```
 
           #### Option 3: Standalone Executables
           Download the pre-built executable for your platform:
@@ -309,15 +309,15 @@ jobs:
           - **Windows**: `asmr18-windows.exe`
 
           Make it executable (Linux/macOS):
-```bash
+          ```bash
           chmod +x asmr18-linux  # or asmr18-macos
           ./asmr18-linux --version
-```
+          ```
 
           Windows users can run `asmr18-windows.exe` directly.
 
           ### 🚀 Quick Start
-```bash
+          ```bash
           # Check version
           asmr18 --version
 
@@ -329,7 +329,7 @@ jobs:
 
           # Show all options
           asmr18 --help
-```
+          ```
 
           ### 📋 What's Included
           - Python wheel (`.whl`) and source distribution (`.tar.gz`)
