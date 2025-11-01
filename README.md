@@ -6,7 +6,7 @@ Command-line tool for downloading audio content from ASMR18.fans with metadata e
 
 ### Quick Install (Linux/macOS)
 ```bash
-curl -sSL https://techvoid.co/asmr18.sh | sh
+curl -sSL https://raw.githubusercontent.com/yosefario-dev/asmr18/main/install.sh | sh
 ```
 
 ### Manual Install
