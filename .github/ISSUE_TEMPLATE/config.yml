@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 💬 Discussions
+    url: https://github.com/yosefario-dev/asmr18/discussions
+    about: Ask questions and discuss features
+  - name: 📚 Documentation
+    url: https://github.com/yosefario-dev/asmr18/blob/main/README.md
+    about: Read the documentation

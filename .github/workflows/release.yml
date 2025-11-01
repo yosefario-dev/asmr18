@@ -1,0 +1,124 @@
+name: Create Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., 0.0.4)'
+        required: true
+        type: string
+      prerelease:
+        description: 'Mark as pre-release'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  prepare-release:
+    name: Prepare Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Validate version format
+      run: |
+        if ! [[ "${{ inputs.version }}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          echo "❌ Invalid version format. Use X.Y.Z (e.g., 0.0.4)"
+          exit 1
+        fi
+        echo "✅ Version format valid: ${{ inputs.version }}"
+
+    - name: Update version in files
+      run: |
+        VERSION="${{ inputs.version }}"
+        sed -i "s/__version__=\".*\"/__version__=\"$VERSION\"/" src/asmr18/__init__.py
+        sed -i "s/__version__=\".*\"/__version__=\"$VERSION\"/" src/asmr18/cli.py
+        sed -i "s/version=\".*\"/version=\"$VERSION\"/" setup.py
+        echo "✅ Version updated to $VERSION in all files"
+
+    - name: Verify changes
+      run: |
+        git diff
+        grep -n "version.*${{ inputs.version }}" setup.py src/asmr18/__init__.py src/asmr18/cli.py
+
+    - name: Generate changelog
+      id: changelog
+      run: |
+        PREVIOUS_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+        if [ -z "$PREVIOUS_TAG" ]; then
+          CHANGES=$(git log --pretty=format:"- %s" --no-merges)
+        else
+          CHANGES=$(git log ${PREVIOUS_TAG}..HEAD --pretty=format:"- %s" --no-merges)
+        fi
+        echo "changelog<<EOF" >> $GITHUB_OUTPUT
+        echo "$CHANGES" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+
+    - name: Commit version bump
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git add -A
+        git commit -m "Bump version to ${{ inputs.version }}" || echo "No changes to commit"
+        git push
+
+    - name: Create Git tag
+      run: |
+        git tag -a "v${{ inputs.version }}" -m "Release v${{ inputs.version }}"
+        git push origin "v${{ inputs.version }}"
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: v${{ inputs.version }}
+        name: Release v${{ inputs.version }}
+        body: |
+          ## 🚀 ASMR18 Downloader v${{ inputs.version }}
+
+          ### Changes
+          ${{ steps.changelog.outputs.changelog }}
+
+          ### Installation
+          ```bash
+          # PyPI (once published)
+          pip install asmr18==${{ inputs.version }}
+
+          # From source
+          bash <(curl -s https://raw.githubusercontent.com/${{ github.repository }}/main/install.sh)
+          ```
+
+          ### Quick Start
+          ```bash
+          asmr18 --version
+          asmr18 "https://asmr18.fans/boys/rj01439456/"
+          asmr18 --help
+          ```
+
+          ### What's New
+          See the [CHANGELOG](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for full details.
+        draft: false
+        prerelease: ${{ inputs.prerelease }}
+        generate_release_notes: true
+        files: |
+          install.sh
+          uninstall.sh
+          README.md
+          LICENSE
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Trigger publish workflow
+      run: |
+        echo "🎉 Release v${{ inputs.version }} created successfully!"
+        echo "Publish workflow will be triggered automatically."

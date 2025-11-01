@@ -1,0 +1,85 @@
+name: CI Quick Check
+
+on:
+  push:
+    branches-ignore:
+      - 'dependabot/**'
+  pull_request:
+
+jobs:
+  quick-check:
+    name: Quick Syntax & Import Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+
+    - name: Install package
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .
+
+    - name: Syntax check all Python files
+      run: |
+        python -m py_compile src/asmr18/*.py
+        echo "✅ All syntax checks passed"
+
+    - name: Test imports
+      run: |
+        python -c "from asmr18 import ASMR18Downloader, DownloadDB, Logger, __version__"
+        python -c "import asmr18.cli; import asmr18.database; import asmr18.logger; import asmr18.utils; import asmr18.downloader"
+        echo "✅ All imports successful"
+
+    - name: Test CLI
+      run: |
+        asmr18 --version
+        asmr18 --help > /dev/null
+        asmr18 --stats
+        echo "✅ CLI commands working"
+
+    - name: Check version consistency
+      run: |
+        VER_INIT=$(python -c "from asmr18 import __version__; print(__version__)")
+        VER_SETUP=$(grep "version=" setup.py | cut -d'"' -f2)
+        VER_CLI=$(asmr18 --version | grep -oP '\d+\.\d+\.\d+')
+        echo "Version in __init__.py: $VER_INIT"
+        echo "Version in setup.py: $VER_SETUP"
+        echo "Version in CLI: $VER_CLI"
+        if [ "$VER_INIT" != "$VER_SETUP" ] || [ "$VER_INIT" != "$VER_CLI" ]; then
+          echo "❌ Version mismatch detected!"
+          exit 1
+        fi
+        echo "✅ All versions match: $VER_INIT"
+
+  compatibility:
+    name: Python ${{ matrix.python-version }} Compatibility
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.8', '3.9', '3.10', '3.11', '3.12', '3.13']
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+        cache: 'pip'
+
+    - name: Install and test
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .
+        asmr18 --version
+        python -c "from asmr18 import __version__; print(f'✅ Python ${{ matrix.python-version }} - asmr18 v{__version__}')"
