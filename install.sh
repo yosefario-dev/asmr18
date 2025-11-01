@@ -106,7 +106,7 @@ else
     pip install --upgrade pip >/dev/null 2>&1
     
     info "Installing asmr18 from pip..."
-    pip install asmr18-downloader >/dev/null 2>&1
+    pip install asmr18 >/dev/null 2>&1
     
     if [ $? -ne 0 ]; then
         warning "pip installation failed, trying alternative method..."
