@@ -1,4 +1,4 @@
-import sys,yaml,click,os,shutil,subprocess,concurrent.futures
+import sys,yaml,click,os,shutil,subprocess,concurrent.futures,time
 from pathlib import Path
 from colorama import init,Fore,Style
 from asmr18.downloader import ASMR18Downloader,DownloadError
@@ -9,6 +9,57 @@ init(autoreset=True)
 __version__="0.0.5"
 CONFIG_DIR=Path.home()/".asmr18"
 CONFIG_FILE=CONFIG_DIR/"config.yaml"
+UPDATE_CHECK_FILE=CONFIG_DIR/"last_update_check"
+def should_check_update()->bool:
+    if not UPDATE_CHECK_FILE.exists():return True
+    try:last_check=float(UPDATE_CHECK_FILE.read_text().strip());return time.time()-last_check>86400
+    except:return True
+def mark_update_checked():
+    try:CONFIG_DIR.mkdir(exist_ok=True);UPDATE_CHECK_FILE.write_text(str(time.time()))
+    except:pass
+def auto_check_update(quiet=False):
+    if not should_check_update():return
+    try:
+        nv=check_for_updates(__version__)
+        if nv and not quiet:click.echo(f"\n{Fore.YELLOW}[!]{Style.RESET_ALL} New version available: v{nv} (current: v{__version__})");click.echo(f"{Fore.CYAN}[*]{Style.RESET_ALL} Run: {Fore.GREEN}asmr18 --update{Style.RESET_ALL} to update\n")
+        mark_update_checked()
+    except:pass
+def update_package(force=False):
+    click.echo(f"\n{Fore.CYAN}[*] Checking for updates...{Style.RESET_ALL}")
+    nv=check_for_updates(__version__)
+    if not nv:click.echo(f"{Fore.GREEN}[+]{Style.RESET_ALL} Already up to date! (v{__version__})");return
+    click.echo(f"{Fore.GREEN}[+]{Style.RESET_ALL} New version available: v{nv}");click.echo(f"    Current version: v{__version__}")
+    if not force:
+        if not click.confirm(f"\n{Fore.YELLOW}Update to v{nv}?{Style.RESET_ALL}",default=True):click.echo(f"{Fore.CYAN}[*]{Style.RESET_ALL} Update cancelled");return
+    click.echo(f"\n{Fore.CYAN}[*]{Style.RESET_ALL} Updating asmr18...")
+    SYSTEM_INSTALL=Path("/opt/asmr18-downloader");USER_INSTALL=Path.home()/".local/share/asmr18-downloader"
+    if SYSTEM_INSTALL.exists():install_dir=SYSTEM_INSTALL;needs_sudo=True
+    elif USER_INSTALL.exists():install_dir=USER_INSTALL;needs_sudo=False
+    else:click.echo(f"{Fore.YELLOW}[!]{Style.RESET_ALL} Installation directory not found, trying pip update...");needs_sudo=False;install_dir=None
+    try:
+        if install_dir and install_dir.exists():
+            venv_python=install_dir/"venv"/"bin"/"python";venv_pip=install_dir/"venv"/"bin"/"pip"
+            if venv_python.exists()and venv_pip.exists():
+                click.echo(f"{Fore.CYAN}[*]{Style.RESET_ALL} Updating package in virtual environment...")
+                cmd=[str(venv_pip),"install","--upgrade","asmr18"]
+                if needs_sudo:click.echo(f"{Fore.YELLOW}[!]{Style.RESET_ALL} System installation detected - sudo required");cmd=["sudo"]+cmd
+                result=subprocess.run(cmd,capture_output=True,text=True)
+                if result.returncode==0:click.echo(f"{Fore.GREEN}[+]{Style.RESET_ALL} Successfully updated to v{nv}!");click.echo(f"{Fore.CYAN}[*]{Style.RESET_ALL} Restart your terminal or run the command again to use the new version")
+                else:
+                    click.echo(f"{Fore.RED}[-]{Style.RESET_ALL} Update failed!")
+                    if result.stderr:click.echo(f"{Fore.RED}Error:{Style.RESET_ALL} {result.stderr}")
+                    click.echo(f"\n{Fore.CYAN}[*]{Style.RESET_ALL} Trying alternative update method...")
+                    alt_cmd=[str(venv_pip),"install","--upgrade","git+https://github.com/yosefario-dev/asmr18.git"]
+                    if needs_sudo:alt_cmd=["sudo"]+alt_cmd
+                    alt_result=subprocess.run(alt_cmd,capture_output=True,text=True)
+                    if alt_result.returncode==0:click.echo(f"{Fore.GREEN}[+]{Style.RESET_ALL} Successfully updated to v{nv}!")
+                    else:click.echo(f"{Fore.RED}[-]{Style.RESET_ALL} Alternative update also failed");click.echo(f"\n{Fore.YELLOW}Manual update required:{Style.RESET_ALL}");click.echo("  Run the install script again:");click.echo("  curl -sSL https://raw.githubusercontent.com/yosefario-dev/asmr18/main/install.sh | sh")
+            else:raise FileNotFoundError("Virtual environment not found")
+        else:
+            click.echo(f"{Fore.CYAN}[*]{Style.RESET_ALL} Updating via pip...");result=subprocess.run(["pip","install","--upgrade","asmr18"],capture_output=True,text=True)
+            if result.returncode==0:click.echo(f"{Fore.GREEN}[+]{Style.RESET_ALL} Successfully updated to v{nv}!");click.echo(f"{Fore.CYAN}[*]{Style.RESET_ALL} Restart your terminal or run the command again to use the new version")
+            else:click.echo(f"{Fore.RED}[-]{Style.RESET_ALL} Update failed!");click.echo(f"\n{Fore.YELLOW}Manual update:{Style.RESET_ALL}");click.echo("  pip install --upgrade asmr18");click.echo("  OR");click.echo("  curl -sSL https://raw.githubusercontent.com/yosefario-dev/asmr18/main/install.sh | sh")
+    except Exception as e:click.echo(f"{Fore.RED}[-]{Style.RESET_ALL} Update failed: {e}");click.echo(f"\n{Fore.YELLOW}Manual update:{Style.RESET_ALL}");click.echo("  curl -sSL https://raw.githubusercontent.com/yosefario-dev/asmr18/main/install.sh | sh")
 def load_config()->dict:
     if CONFIG_FILE.exists():
         try:
@@ -22,7 +73,6 @@ def save_config(cfg:dict):
         click.echo(f"{Fore.GREEN}[+]{Style.RESET_ALL} Config saved to {CONFIG_FILE}")
     except Exception as e:click.echo(f"{Fore.RED}[-]{Style.RESET_ALL} Failed: {e}",err=True)
 def list_config():
-    """Display current configuration"""
     click.echo(f"\n{Fore.CYAN}[*] Current Configuration{Style.RESET_ALL}\n")
     if CONFIG_FILE.exists():
         cfg=load_config()
@@ -32,7 +82,6 @@ def list_config():
         else:click.echo(f"  {Fore.YELLOW}(empty){Style.RESET_ALL}")
     else:click.echo(f"  {Fore.YELLOW}No config file found{Style.RESET_ALL}\n  Default: {CONFIG_FILE}")
 def reset_config():
-    """Reset configuration to defaults"""
     if CONFIG_FILE.exists():
         try:
             CONFIG_FILE.unlink()
@@ -41,7 +90,6 @@ def reset_config():
         except Exception as e:click.echo(f"{Fore.RED}[-]{Style.RESET_ALL} Failed: {e}",err=True)
     else:click.echo(f"{Fore.YELLOW}[!]{Style.RESET_ALL} No config file to reset")
 def show_stats():
-    """Display download statistics"""
     db=DownloadDB()
     st=db.get_stats()
     click.echo(f"\n{Fore.CYAN}=== Download Statistics ==={Style.RESET_ALL}\n")
@@ -52,7 +100,6 @@ def show_stats():
     click.echo(f"{Fore.CYAN}Total Size:{Style.RESET_ALL} {format_bytes(ts)}")
     db.close()
 def show_history(limit:int=20):
-    """Display download history"""
     db=DownloadDB()
     hs=db.get_history(limit)
     if not hs:click.echo(f"\n{Fore.YELLOW}No download history{Style.RESET_ALL}");db.close();return
@@ -67,19 +114,17 @@ def show_history(limit:int=20):
         click.echo()
     db.close()
 def cleanup_db(days:int=90):
-    """Cleanup old database entries"""
     db=DownloadDB()
     db.cleanup_old(days)
     click.echo(f"{Fore.GREEN}[+]{Style.RESET_ALL} Cleaned up entries older than {days} days")
     db.close()
 def check_updates():
-    """Check for updates"""
     click.echo(f"{Fore.CYAN}[*]{Style.RESET_ALL} Checking for updates...")
     nv=check_for_updates(__version__)
     if nv:
-        click.echo(f"{Fore.GREEN}[+]{Style.RESET_ALL} New version available: {nv}")
-        click.echo(f"    Current: {__version__}")
-        click.echo(f"    Visit: https://github.com/yosefario-dev/asmr18/releases")
+        click.echo(f"{Fore.GREEN}[+]{Style.RESET_ALL} New version available: v{nv}")
+        click.echo(f"    Current: v{__version__}")
+        click.echo(f"\n{Fore.CYAN}[*]{Style.RESET_ALL} Run: {Fore.GREEN}asmr18 --update{Style.RESET_ALL} to update")
     else:click.echo(f"{Fore.GREEN}[+]{Style.RESET_ALL} You're up to date! (v{__version__})")
 def uninstall(force=False):
     """Uninstall asmr18"""
@@ -150,10 +195,11 @@ def uninstall(force=False):
 @click.option('--history',type=int,help='Show download history (limit)')
 @click.option('--cleanup',type=int,help='Cleanup old DB entries (days)')
 @click.option('--check-update','check_update_flag',is_flag=True,help='Check for updates')
+@click.option('--update','update_flag',is_flag=True,help='Update to latest version')
 @click.option('--uninstall','uninstall_flag',is_flag=True,help='Uninstall asmr18')
 @click.option('--force',is_flag=True,help='Force operation without confirmation')
 @click.option('--version','version_flag',is_flag=True,help='Show version information')
-def main(url,output,verbose,quiet,no_ffmpeg,template,batch,skip_existing,dry_run,rate_limit,max_retries,parallel,archive,save_config_flag,list_config_flag,reset_config_flag,stats_flag,history,cleanup,check_update_flag,uninstall_flag,force,version_flag):
+def main(url,output,verbose,quiet,no_ffmpeg,template,batch,skip_existing,dry_run,rate_limit,max_retries,parallel,archive,save_config_flag,list_config_flag,reset_config_flag,stats_flag,history,cleanup,check_update_flag,update_flag,uninstall_flag,force,version_flag):
     """ASMR18.fans Downloader - Download content with metadata extraction and chapter support.
 
     Examples:
@@ -164,15 +210,18 @@ def main(url,output,verbose,quiet,no_ffmpeg,template,batch,skip_existing,dry_run
       asmr18 --stats
       asmr18 --history 10
       asmr18 --check-update
+      asmr18 --update
     """
     if version_flag:click.echo(f"ASMR18 Downloader v{__version__}");return
     if check_update_flag:check_updates();return
+    if update_flag:update_package(force=force);return
     if uninstall_flag:uninstall(force=force);return
     if list_config_flag:list_config();return
     if reset_config_flag:reset_config();return
     if stats_flag:show_stats();return
     if history is not None:show_history(history or 20);return
     if cleanup:cleanup_db(cleanup);return
+    auto_check_update(quiet=quiet)
     cfg=load_config()
     use_ffmpeg=not no_ffmpeg if no_ffmpeg else cfg.get('use_ffmpeg',True)
     output_dir=output if output!='downloads'else cfg.get('output_dir','downloads')
