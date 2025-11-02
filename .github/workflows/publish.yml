@@ -30,41 +30,95 @@ jobs:
           VERSION="${GITHUB_REF#refs/tags/v}"
           VERSION="${VERSION#refs/tags/V}"
         fi
+        
+        # Validate version format
+        if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          echo "❌ Invalid version format: $VERSION"
+          echo "Expected format: X.Y.Z (e.g., 0.0.5)"
+          exit 1
+        fi
+        
         echo "version=$VERSION" >> $GITHUB_OUTPUT
-        echo "Version: $VERSION"
+        echo "✅ Version: $VERSION"
 
     - name: Update version in all files
       run: |
         VERSION="${{ steps.get_version.outputs.version }}"
         
-        # Update setup.py
-        sed -i "s/version=\"[0-9.]*\"/version=\"$VERSION\"/" setup.py
+        echo "Updating version to $VERSION..."
         
-        # Update __init__.py if it exists
+        # Update setup.py - matches: version="0.0.5"
+        if [ -f "setup.py" ]; then
+          sed -i 's/version="[0-9]\+\.[0-9]\+\.[0-9]\+"/version="'"$VERSION"'"/' setup.py
+          echo "✅ Updated setup.py"
+        fi
+        
+        # Update __init__.py - matches: __version__="0.0.5"
         if [ -f "src/asmr18/__init__.py" ]; then
-          sed -i "s/__version__\s*=\s*['\"][0-9.]*['\"]/__version__ = \"$VERSION\"/" src/asmr18/__init__.py
+          sed -i 's/__version__="[0-9]\+\.[0-9]\+\.[0-9]\+"/__version__="'"$VERSION"'"/' src/asmr18/__init__.py
+          echo "✅ Updated __init__.py"
         fi
         
-        # Update cli.py if it exists
+        # Update cli.py - matches: __version__="0.0.5"
         if [ -f "src/asmr18/cli.py" ]; then
-          sed -i "s/__version__\s*=\s*['\"][0-9.]*['\"]/__version__ = \"$VERSION\"/" src/asmr18/cli.py
+          sed -i 's/__version__="[0-9]\+\.[0-9]\+\.[0-9]\+"/__version__="'"$VERSION"'"/' src/asmr18/cli.py
+          echo "✅ Updated cli.py"
         fi
-        
-        echo "✅ Updated version to $VERSION in all files"
 
     - name: Verify version updates
       run: |
-        echo "=== setup.py ==="
-        grep "version=" setup.py
+        VERSION="${{ steps.get_version.outputs.version }}"
+        ERRORS=0
         
-        echo "=== __init__.py ==="
-        if [ -f "src/asmr18/__init__.py" ]; then
-          grep "__version__" src/asmr18/__init__.py || echo "No __version__ found"
+        echo "=== Verifying Version Updates ==="
+        echo ""
+        
+        # Check setup.py
+        echo "📄 setup.py:"
+        if grep -q "version=\"$VERSION\"" setup.py; then
+          echo "  ✅ version=\"$VERSION\""
+        else
+          echo "  ❌ Version not updated!"
+          grep "version=" setup.py || echo "  (no version found)"
+          ERRORS=$((ERRORS + 1))
         fi
         
-        echo "=== cli.py ==="
+        # Check __init__.py
+        echo ""
+        echo "📄 __init__.py:"
+        if [ -f "src/asmr18/__init__.py" ]; then
+          if grep -q "__version__=\"$VERSION\"" src/asmr18/__init__.py; then
+            echo "  ✅ __version__=\"$VERSION\""
+          else
+            echo "  ❌ Version not updated!"
+            grep "__version__" src/asmr18/__init__.py || echo "  (no __version__ found)"
+            ERRORS=$((ERRORS + 1))
+          fi
+        else
+          echo "  ⚠️  File not found"
+        fi
+        
+        # Check cli.py
+        echo ""
+        echo "📄 cli.py:"
         if [ -f "src/asmr18/cli.py" ]; then
-          grep "__version__" src/asmr18/cli.py || echo "No __version__ found"
+          if grep -q "__version__=\"$VERSION\"" src/asmr18/cli.py; then
+            echo "  ✅ __version__=\"$VERSION\""
+          else
+            echo "  ❌ Version not updated!"
+            grep "__version__" src/asmr18/cli.py || echo "  (no __version__ found)"
+            ERRORS=$((ERRORS + 1))
+          fi
+        else
+          echo "  ⚠️  File not found"
+        fi
+        
+        echo ""
+        if [ $ERRORS -gt 0 ]; then
+          echo "❌ Version verification failed with $ERRORS error(s)"
+          exit 1
+        else
+          echo "✅ All version updates verified successfully!"
         fi
 
     - name: Upload updated source
@@ -72,14 +126,13 @@ jobs:
       with:
         name: updated-source
         path: |
-          setup.py
-          src/
-          requirements.txt
-          README.md
-          LICENSE
-          MANIFEST.in
-          install.sh
-          uninstall.sh
+          .
+        exclude: |
+          .git/
+          .github/
+          __pycache__/
+          *.pyc
+          .pytest_cache/
         retention-days: 1
 
   build:
@@ -206,7 +259,7 @@ jobs:
     needs: [build]
     runs-on: ubuntu-latest
     permissions:
-      id-token: write  # Required for trusted publishing
+      id-token: write
     environment:
       name: pypi
       url: https://pypi.org/p/asmr18
@@ -223,9 +276,6 @@ jobs:
       with:
         skip-existing: true
         verbose: true
-        # Automatically uses trusted publishing (OIDC) if configured,
-        # or falls back to password if PYPI_API_TOKEN secret is set
-
   publish-github:
     name: Publish to GitHub Releases
     needs: [build, create-installers, update-version]
@@ -383,16 +433,14 @@ jobs:
         pip install dist/*.whl
         asmr18 --version
         asmr18 --help > /dev/null
-        echo "✅ Wheel installation successful"
-
+        
     - name: Test source installation
       if: matrix.install-method == 'source'
       run: |
         pip install dist/*.tar.gz
         asmr18 --version
         asmr18 --help > /dev/null
-        echo "✅ Source installation successful"
-
+        
   test-executables:
     name: Test ${{ matrix.os }} Executable
     needs: [create-installers]
@@ -429,24 +477,3 @@ jobs:
           ./asmr18 --version
           ./asmr18 --help > /dev/null
         fi
-        echo "✅ Executable test passed"
-
-  notify:
-    name: Notify on Success
-    needs: [publish-pypi, publish-github]
-    runs-on: ubuntu-latest
-    if: success()
-
-    steps:
-    - name: Success notification
-      run: |
-        echo "✅ Release published successfully!"
-        echo ""
-        echo "📦 PyPI: https://pypi.org/project/asmr18/"
-        echo "🐙 GitHub: ${{ github.server_url }}/${{ github.repository }}/releases"
-        echo "📥 Version: ${{ needs.update-version.outputs.version }}"
-        echo ""
-        echo "Users can now install via:"
-        echo "  pip install asmr18"
-        echo ""
-        echo "Or download executables from GitHub releases"
