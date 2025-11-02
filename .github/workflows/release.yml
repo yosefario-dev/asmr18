@@ -1,4 +1,5 @@
 name: Create Release
+
 on:
   workflow_dispatch:
     inputs:
@@ -11,93 +12,115 @@ on:
         required: false
         type: boolean
         default: false
+
 jobs:
   prepare-release:
     name: Prepare Release
     runs-on: ubuntu-latest
     permissions:
       contents: write
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v5
       with:
         fetch-depth: 0
+
     - name: Set up Python
       uses: actions/setup-python@v6
       with:
         python-version: '3.11'
+
     - name: Validate version format
       run: |
         if ! [[ "${{ inputs.version }}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-          echo "[x] Invalid version format. Use X.Y.Z (e.g., 0.0.4)"
+          echo "❌ Invalid version format. Use X.Y.Z (e.g., 0.0.4)"
           exit 1
         fi
-        echo "[+] Version format valid: ${{ inputs.version }}"
+        echo "✅ Version format valid: ${{ inputs.version }}"
+
     - name: Update version in files
       run: |
         VERSION="${{ inputs.version }}"
+        
         echo "Updating version to $VERSION..."
+        
+        # Update setup.py - matches: version="0.0.5"
         if [ -f "setup.py" ]; then
           sed -i 's/version="[0-9]\+\.[0-9]\+\.[0-9]\+"/version="'"$VERSION"'"/' setup.py
-          echo "[+] Updated setup.py"
+          echo "✅ Updated setup.py"
         fi
+        
+        # Update __init__.py - matches: __version__="0.0.5"
         if [ -f "src/asmr18/__init__.py" ]; then
           sed -i 's/__version__="[0-9]\+\.[0-9]\+\.[0-9]\+"/__version__="'"$VERSION"'"/' src/asmr18/__init__.py
-          echo "[+] Updated __init__.py"
+          echo "✅ Updated __init__.py"
         fi
+        
+        # Update cli.py - matches: __version__="0.0.5"
         if [ -f "src/asmr18/cli.py" ]; then
           sed -i 's/__version__="[0-9]\+\.[0-9]\+\.[0-9]\+"/__version__="'"$VERSION"'"/' src/asmr18/cli.py
-          echo "[+] Updated cli.py"
+          echo "✅ Updated cli.py"
         fi
+
     - name: Verify changes
       run: |
         VERSION="${{ inputs.version }}"
         ERRORS=0
+        
         echo "=== Verifying Version Updates ==="
         echo ""
-        echo "setup.py:"
+        
+        # Check setup.py
+        echo "📄 setup.py:"
         if grep -q "version=\"$VERSION\"" setup.py; then
-          echo "  [+] version=\"$VERSION\""
+          echo "  ✅ version=\"$VERSION\""
           grep "version=" setup.py
         else
-          echo "  [x] Version not updated!"
+          echo "  ❌ Version not updated!"
           grep "version=" setup.py || echo "  (no version found)"
           ERRORS=$((ERRORS + 1))
         fi
+        
+        # Check __init__.py
         echo ""
-        echo "src/asmr18/__init__.py:"
+        echo "📄 src/asmr18/__init__.py:"
         if [ -f "src/asmr18/__init__.py" ]; then
           if grep -q "__version__=\"$VERSION\"" src/asmr18/__init__.py; then
-            echo "  [+] __version__=\"$VERSION\""
+            echo "  ✅ __version__=\"$VERSION\""
             grep "__version__" src/asmr18/__init__.py
           else
-            echo "  [x] Version not updated!"
+            echo "  ❌ Version not updated!"
             grep "__version__" src/asmr18/__init__.py || echo "  (no __version__ found)"
             ERRORS=$((ERRORS + 1))
           fi
         fi
+        
+        # Check cli.py
         echo ""
-        echo "src/asmr18/cli.py:"
+        echo "📄 src/asmr18/cli.py:"
         if [ -f "src/asmr18/cli.py" ]; then
           if grep -q "__version__=\"$VERSION\"" src/asmr18/cli.py; then
-            echo "  [+] __version__=\"$VERSION\""
+            echo "  ✅ __version__=\"$VERSION\""
             grep "__version__" src/asmr18/cli.py
           else
-            echo "  [x] Version not updated!"
+            echo "  ❌ Version not updated!"
             grep "__version__" src/asmr18/cli.py || echo "  (no __version__ found)"
             ERRORS=$((ERRORS + 1))
           fi
         fi
+        
         echo ""
         if [ $ERRORS -gt 0 ]; then
-          echo "[x] Version verification failed with $ERRORS error(s)"
+          echo "❌ Version verification failed with $ERRORS error(s)"
           exit 1
         else
-          echo "[+] All version updates verified successfully!"
+          echo "✅ All version updates verified successfully!"
           echo ""
           echo "Git diff:"
           git diff
         fi
+
     - name: Generate changelog
       id: changelog
       run: |
@@ -110,6 +133,7 @@ jobs:
         echo "changelog<<EOF" >> $GITHUB_OUTPUT
         echo "$CHANGES" >> $GITHUB_OUTPUT
         echo "EOF" >> $GITHUB_OUTPUT
+
     - name: Commit version bump
       run: |
         git config user.name "github-actions[bot]"
@@ -117,34 +141,38 @@ jobs:
         git add setup.py src/asmr18/__init__.py src/asmr18/cli.py
         git commit -m "chore: bump version to ${{ inputs.version }} [skip ci]" || echo "No changes to commit"
         git push
+
     - name: Create Git tag
       run: |
         git tag -a "v${{ inputs.version }}" -m "Release v${{ inputs.version }}"
         git push origin "v${{ inputs.version }}"
+
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v1
       with:
         tag_name: v${{ inputs.version }}
         name: Release v${{ inputs.version }}
         body: |
-          ## ASMR18 Downloader v${{ inputs.version }}
+          ## 🚀 ASMR18 Downloader v${{ inputs.version }}
 
           ### Changes
           ${{ steps.changelog.outputs.changelog }}
 
           ### Installation
-```bash
+          ```bash
+          # PyPI (once published)
           pip install asmr18==${{ inputs.version }}
 
+          # From source
           bash <(curl -s https://raw.githubusercontent.com/${{ github.repository }}/main/install.sh)
-```
+          ```
 
           ### Quick Start
-```bash
+          ```bash
           asmr18 --version
           asmr18 "https://asmr18.fans/boys/rj01439456/"
           asmr18 --help
-```
+          ```
 
           ### What's New
           See the [CHANGELOG](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for full details.
@@ -158,7 +186,8 @@ jobs:
           LICENSE
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
     - name: Trigger publish workflow
       run: |
-        echo "[+] Release v${{ inputs.version }} created successfully!"
+        echo "🎉 Release v${{ inputs.version }} created successfully!"
         echo "Publish workflow will be triggered automatically."
