@@ -1,4 +1,5 @@
 name: Publish Release
+
 on:
   release:
     types: [published]
@@ -8,17 +9,20 @@ on:
         description: 'Version to publish (e.g., 0.0.4)'
         required: true
         type: string
+
 jobs:
   update-version:
     name: Update Version Numbers
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: write  # Required to push version updates
     outputs:
       version: ${{ steps.get_version.outputs.version }}
+    
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+
     - name: Get version from input or tag
       id: get_version
       run: |
@@ -28,90 +32,116 @@ jobs:
           VERSION="${GITHUB_REF#refs/tags/v}"
           VERSION="${VERSION#refs/tags/V}"
         fi
+        
+        # Validate version format
         if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-          echo "[x] Invalid version format: $VERSION"
+          echo "❌ Invalid version format: $VERSION"
           echo "Expected format: X.Y.Z (e.g., 0.0.5)"
           exit 1
         fi
+        
         echo "version=$VERSION" >> $GITHUB_OUTPUT
-        echo "[+] Version: $VERSION"
+        echo "✅ Version: $VERSION"
+
     - name: Update version in all files
       run: |
         VERSION="${{ steps.get_version.outputs.version }}"
+        
         echo "Updating version to $VERSION..."
+        
+        # Update setup.py - matches: version="0.0.5"
         if [ -f "setup.py" ]; then
           sed -i 's/version="[0-9]\+\.[0-9]\+\.[0-9]\+"/version="'"$VERSION"'"/' setup.py
-          echo "[+] Updated setup.py"
+          echo "✅ Updated setup.py"
         fi
+        
+        # Update __init__.py - matches: __version__="0.0.5"
         if [ -f "src/asmr18/__init__.py" ]; then
           sed -i 's/__version__="[0-9]\+\.[0-9]\+\.[0-9]\+"/__version__="'"$VERSION"'"/' src/asmr18/__init__.py
-          echo "[+] Updated __init__.py"
+          echo "✅ Updated __init__.py"
         fi
+        
+        # Update cli.py - matches: __version__="0.0.5"
         if [ -f "src/asmr18/cli.py" ]; then
           sed -i 's/__version__="[0-9]\+\.[0-9]\+\.[0-9]\+"/__version__="'"$VERSION"'"/' src/asmr18/cli.py
-          echo "[+] Updated cli.py"
+          echo "✅ Updated cli.py"
         fi
+
     - name: Verify version updates
       run: |
         VERSION="${{ steps.get_version.outputs.version }}"
         ERRORS=0
+        
         echo "=== Verifying Version Updates ==="
         echo ""
-        echo "setup.py:"
+        
+        # Check setup.py
+        echo "📄 setup.py:"
         if grep -q "version=\"$VERSION\"" setup.py; then
-          echo "  [+] version=\"$VERSION\""
+          echo "  ✅ version=\"$VERSION\""
         else
-          echo "  [x] Version not updated!"
+          echo "  ❌ Version not updated!"
           grep "version=" setup.py || echo "  (no version found)"
           ERRORS=$((ERRORS + 1))
         fi
+        
+        # Check __init__.py
         echo ""
-        echo "__init__.py:"
+        echo "📄 __init__.py:"
         if [ -f "src/asmr18/__init__.py" ]; then
           if grep -q "__version__=\"$VERSION\"" src/asmr18/__init__.py; then
-            echo "  [+] __version__=\"$VERSION\""
+            echo "  ✅ __version__=\"$VERSION\""
           else
-            echo "  [x] Version not updated!"
+            echo "  ❌ Version not updated!"
             grep "__version__" src/asmr18/__init__.py || echo "  (no __version__ found)"
             ERRORS=$((ERRORS + 1))
           fi
         else
-          echo "  [!] File not found"
+          echo "  ⚠️  File not found"
         fi
+        
+        # Check cli.py
         echo ""
-        echo "cli.py:"
+        echo "📄 cli.py:"
         if [ -f "src/asmr18/cli.py" ]; then
           if grep -q "__version__=\"$VERSION\"" src/asmr18/cli.py; then
-            echo "  [+] __version__=\"$VERSION\""
+            echo "  ✅ __version__=\"$VERSION\""
           else
-            echo "  [x] Version not updated!"
+            echo "  ❌ Version not updated!"
             grep "__version__" src/asmr18/cli.py || echo "  (no __version__ found)"
             ERRORS=$((ERRORS + 1))
           fi
         else
-          echo "  [!] File not found"
+          echo "  ⚠️  File not found"
         fi
+        
         echo ""
         if [ $ERRORS -gt 0 ]; then
-          echo "[x] Version verification failed with $ERRORS error(s)"
+          echo "❌ Version verification failed with $ERRORS error(s)"
           exit 1
         else
-          echo "[+] All version updates verified successfully!"
+          echo "✅ All version updates verified successfully!"
         fi
+
     - name: Commit version changes to repository
       run: |
         VERSION="${{ steps.get_version.outputs.version }}"
+        
+        # Configure git
         git config user.name "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
+        
+        # Check if there are changes
         if git diff --quiet setup.py src/asmr18/__init__.py src/asmr18/cli.py; then
-          echo "[i] No changes to commit (version already updated in repo)"
+          echo "ℹ️  No changes to commit (version already updated in repo)"
         else
-          echo "Committing version changes..."
+          echo "📝 Committing version changes..."
           git add setup.py src/asmr18/__init__.py src/asmr18/cli.py
           git commit -m "chore: bump version to $VERSION [skip ci]"
           git push
-          echo "[+] Version changes committed and pushed to repository"
+          echo "✅ Version changes committed and pushed to repository"
         fi
+
     - name: Upload updated source
       uses: actions/upload-artifact@v4
       with:
@@ -125,31 +155,39 @@ jobs:
           *.pyc
           .pytest_cache/
         retention-days: 1
+
   build:
     name: Build Distribution
     needs: [update-version]
     runs-on: ubuntu-latest
+
     steps:
     - name: Download updated source
       uses: actions/download-artifact@v4
       with:
         name: updated-source
         path: .
+
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.11'
         cache: 'pip'
+
     - name: Install build dependencies
-      run: python -m pip install --upgrade pip setuptools wheel build twine
+      run: |
+        python -m pip install --upgrade pip setuptools wheel build twine
+
     - name: Build distributions
       run: |
         python -m build
-        echo "[+] Built distributions"
+        echo "✅ Built distributions"
+
     - name: Check distributions
       run: |
         twine check dist/*
-        echo "[+] Distribution check passed"
+        echo "✅ Distribution check passed"
+
     - name: List built files
       run: |
         ls -lh dist/
@@ -157,12 +195,14 @@ jobs:
         for file in dist/*; do
           echo "  - $(basename $file)"
         done
+
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
         name: distributions
         path: dist/
         retention-days: 7
+
   create-installers:
     name: Create ${{ matrix.os }} Installer
     needs: [update-version]
@@ -179,37 +219,45 @@ jobs:
           - os: windows-latest
             artifact-name: asmr18-windows
             binary-name: asmr18.exe
+
     steps:
     - name: Download updated source
       uses: actions/download-artifact@v4
       with:
         name: updated-source
         path: .
+
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.11'
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         pip install pyinstaller
+
     - name: Install package
-      run: pip install -e .
+      run: |
+        pip install -e .
+
     - name: Build standalone executable
       run: |
         pyinstaller --onefile --name asmr18 src/asmr18/cli.py
-        echo "[+] Built executable for ${{ matrix.os }}"
+        echo "✅ Built executable for ${{ matrix.os }}"
+
     - name: List built executable
       shell: bash
       run: |
         ls -lh dist/
         if [ -f "dist/${{ matrix.binary-name }}" ]; then
-          echo "[+] Found: dist/${{ matrix.binary-name }}"
+          echo "✅ Found: dist/${{ matrix.binary-name }}"
         else
-          echo "[x] Binary not found!"
+          echo "❌ Binary not found!"
           exit 1
         fi
+
     - name: Test executable
       shell: bash
       run: |
@@ -219,125 +267,153 @@ jobs:
           chmod +x dist/asmr18
           ./dist/asmr18 --version
         fi
+
     - name: Upload executable
       uses: actions/upload-artifact@v4
       with:
         name: ${{ matrix.artifact-name }}
         path: dist/${{ matrix.binary-name }}
         retention-days: 7
+
   publish-pypi:
     name: Publish to PyPI
     needs: [build]
     runs-on: ubuntu-latest
     permissions:
-      id-token: write
+      id-token: write  # Required for trusted publishing
     environment:
       name: pypi
       url: https://pypi.org/p/asmr18
+
     steps:
     - name: Download distributions
       uses: actions/download-artifact@v4
       with:
         name: distributions
         path: dist/
+
     - name: Publish to PyPI
       uses: pypa/gh-action-pypi-publish@release/v1
       with:
         skip-existing: true
         verbose: true
+        # Automatically uses trusted publishing (OIDC) if configured,
+        # or falls back to password if PYPI_API_TOKEN secret is set
+
   publish-github:
     name: Publish to GitHub Releases
     needs: [build, create-installers, update-version]
     runs-on: ubuntu-latest
     permissions:
       contents: write
+
     steps:
     - name: Download updated source
       uses: actions/download-artifact@v4
       with:
         name: updated-source
         path: .
+
     - name: Download distributions
       uses: actions/download-artifact@v4
       with:
         name: distributions
         path: dist/
+
     - name: Download Linux executable
       uses: actions/download-artifact@v4
       with:
         name: asmr18-linux
         path: executables/linux/
+
     - name: Download macOS executable
       uses: actions/download-artifact@v4
       with:
         name: asmr18-macos
         path: executables/macos/
+
     - name: Download Windows executable
       uses: actions/download-artifact@v4
       with:
         name: asmr18-windows
         path: executables/windows/
+
     - name: Rename executables for release
       run: |
         mkdir -p release-files
+        
+        # Copy distributions
         cp dist/*.tar.gz dist/*.whl release-files/ 2>/dev/null || true
+        
+        # Rename and copy executables with platform suffix
         cp executables/linux/asmr18 release-files/asmr18-linux || true
         cp executables/macos/asmr18 release-files/asmr18-macos || true
         cp executables/windows/asmr18.exe release-files/asmr18-windows.exe || true
+        
+        # Copy scripts and docs
         cp install.sh uninstall.sh README.md LICENSE release-files/ 2>/dev/null || true
+        
         echo "=== Release Files ==="
         ls -lh release-files/
+
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v1
       with:
         tag_name: v${{ needs.update-version.outputs.version }}
         name: Release v${{ needs.update-version.outputs.version }}
         body: |
-          ## ASMR18 Downloader v${{ needs.update-version.outputs.version }}
-          
-          ### Installation Options
-          
+          ## 🚀 ASMR18 Downloader v${{ needs.update-version.outputs.version }}
+
+          ### 📦 Installation Options
+
           #### Option 1: pip (Recommended)
-```bash
+          ```bash
           pip install asmr18
-```
-          
+          ```
+
           #### Option 2: Quick Install Script (Linux/macOS)
-```bash
+          ```bash
           curl -sSL https://raw.githubusercontent.com/${{ github.repository }}/main/install.sh | bash
-```
-          
+          ```
+
           #### Option 3: Standalone Executables
           Download the pre-built executable for your platform:
           - **Linux**: `asmr18-linux`
           - **macOS**: `asmr18-macos`
           - **Windows**: `asmr18-windows.exe`
-          
+
           Make it executable (Linux/macOS):
-```bash
-          chmod +x asmr18-linux
+          ```bash
+          chmod +x asmr18-linux  # or asmr18-macos
           ./asmr18-linux --version
-```
-          
+          ```
+
           Windows users can run `asmr18-windows.exe` directly.
-          
-          ### Quick Start
-```bash
+
+          ### 🚀 Quick Start
+          ```bash
+          # Check version
           asmr18 --version
+
+          # Download a work
           asmr18 "https://asmr18.fans/boys/rj01439456/"
+
+          # Custom output directory
           asmr18 "URL" -o /path/to/output
+
+          # Show all options
           asmr18 --help
-```
-          
-          ### What's Included
+          ```
+
+          ### 📋 What's Included
           - Python wheel (`.whl`) and source distribution (`.tar.gz`)
           - Standalone executables for Linux, macOS, and Windows
           - Installation scripts (`install.sh`, `uninstall.sh`)
           - Documentation (`README.md`)
-          
-          ### Full Changelog
+
+          ### 📝 Full Changelog
           See the [commit history](https://github.com/${{ github.repository }}/commits/v${{ needs.update-version.outputs.version }}) for detailed changes.
-          
+
           ---
           **Requirements**: Python 3.8+ (for pip installation) or use standalone executables
           **Recommended**: ffmpeg for faster downloads
@@ -348,6 +424,7 @@ jobs:
           release-files/*
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   test-installation:
     name: Test ${{ matrix.install-method }} on ${{ matrix.os }}
     needs: [build]
@@ -361,30 +438,35 @@ jobs:
         exclude:
           - os: macos-latest
             python-version: '3.8'
+
     steps:
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
+
     - name: Download distributions
       uses: actions/download-artifact@v4
       with:
         name: distributions
         path: dist/
+
     - name: Test wheel installation
       if: matrix.install-method == 'wheel'
       run: |
         pip install dist/*.whl
         asmr18 --version
         asmr18 --help > /dev/null
-        echo "[+] Wheel installation successful"
+        echo "✅ Wheel installation successful"
+
     - name: Test source installation
       if: matrix.install-method == 'source'
       run: |
         pip install dist/*.tar.gz
         asmr18 --version
         asmr18 --help > /dev/null
-        echo "[+] Source installation successful"
+        echo "✅ Source installation successful"
+
   test-executables:
     name: Test ${{ matrix.os }} Executable
     needs: [create-installers]
@@ -402,12 +484,14 @@ jobs:
           - os: windows-latest
             artifact-name: asmr18-windows
             binary-name: asmr18.exe
+
     steps:
     - name: Download executable
       uses: actions/download-artifact@v4
       with:
         name: ${{ matrix.artifact-name }}
         path: .
+
     - name: Test executable
       shell: bash
       run: |
@@ -419,20 +503,22 @@ jobs:
           ./asmr18 --version
           ./asmr18 --help > /dev/null
         fi
-        echo "[+] Executable test passed"
+        echo "✅ Executable test passed"
+
   notify:
     name: Notify on Success
     needs: [publish-pypi, publish-github]
     runs-on: ubuntu-latest
     if: success()
+
     steps:
     - name: Success notification
       run: |
-        echo "[+] Release published successfully!"
+        echo "✅ Release published successfully!"
         echo ""
-        echo "PyPI: https://pypi.org/project/asmr18/"
-        echo "GitHub: ${{ github.server_url }}/${{ github.repository }}/releases"
-        echo "Version: ${{ needs.update-version.outputs.version }}"
+        echo "📦 PyPI: https://pypi.org/project/asmr18/"
+        echo "🐙 GitHub: ${{ github.server_url }}/${{ github.repository }}/releases"
+        echo "📥 Version: ${{ needs.update-version.outputs.version }}"
         echo ""
         echo "Users can now install via:"
         echo "  pip install asmr18"
