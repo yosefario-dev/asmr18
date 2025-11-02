@@ -42,15 +42,84 @@ jobs:
     - name: Update version in files
       run: |
         VERSION="${{ inputs.version }}"
-        sed -i "s/__version__=\".*\"/__version__=\"$VERSION\"/" src/asmr18/__init__.py
-        sed -i "s/__version__=\".*\"/__version__=\"$VERSION\"/" src/asmr18/cli.py
-        sed -i "s/version=\".*\"/version=\"$VERSION\"/" setup.py
-        echo "✅ Version updated to $VERSION in all files"
+        
+        echo "Updating version to $VERSION..."
+        
+        # Update setup.py - matches: version="0.0.5"
+        if [ -f "setup.py" ]; then
+          sed -i 's/version="[0-9]\+\.[0-9]\+\.[0-9]\+"/version="'"$VERSION"'"/' setup.py
+          echo "✅ Updated setup.py"
+        fi
+        
+        # Update __init__.py - matches: __version__="0.0.5"
+        if [ -f "src/asmr18/__init__.py" ]; then
+          sed -i 's/__version__="[0-9]\+\.[0-9]\+\.[0-9]\+"/__version__="'"$VERSION"'"/' src/asmr18/__init__.py
+          echo "✅ Updated __init__.py"
+        fi
+        
+        # Update cli.py - matches: __version__="0.0.5"
+        if [ -f "src/asmr18/cli.py" ]; then
+          sed -i 's/__version__="[0-9]\+\.[0-9]\+\.[0-9]\+"/__version__="'"$VERSION"'"/' src/asmr18/cli.py
+          echo "✅ Updated cli.py"
+        fi
 
     - name: Verify changes
       run: |
-        git diff
-        grep -n "version.*${{ inputs.version }}" setup.py src/asmr18/__init__.py src/asmr18/cli.py
+        VERSION="${{ inputs.version }}"
+        ERRORS=0
+        
+        echo "=== Verifying Version Updates ==="
+        echo ""
+        
+        # Check setup.py
+        echo "📄 setup.py:"
+        if grep -q "version=\"$VERSION\"" setup.py; then
+          echo "  ✅ version=\"$VERSION\""
+          grep "version=" setup.py
+        else
+          echo "  ❌ Version not updated!"
+          grep "version=" setup.py || echo "  (no version found)"
+          ERRORS=$((ERRORS + 1))
+        fi
+        
+        # Check __init__.py
+        echo ""
+        echo "📄 src/asmr18/__init__.py:"
+        if [ -f "src/asmr18/__init__.py" ]; then
+          if grep -q "__version__=\"$VERSION\"" src/asmr18/__init__.py; then
+            echo "  ✅ __version__=\"$VERSION\""
+            grep "__version__" src/asmr18/__init__.py
+          else
+            echo "  ❌ Version not updated!"
+            grep "__version__" src/asmr18/__init__.py || echo "  (no __version__ found)"
+            ERRORS=$((ERRORS + 1))
+          fi
+        fi
+        
+        # Check cli.py
+        echo ""
+        echo "📄 src/asmr18/cli.py:"
+        if [ -f "src/asmr18/cli.py" ]; then
+          if grep -q "__version__=\"$VERSION\"" src/asmr18/cli.py; then
+            echo "  ✅ __version__=\"$VERSION\""
+            grep "__version__" src/asmr18/cli.py
+          else
+            echo "  ❌ Version not updated!"
+            grep "__version__" src/asmr18/cli.py || echo "  (no __version__ found)"
+            ERRORS=$((ERRORS + 1))
+          fi
+        fi
+        
+        echo ""
+        if [ $ERRORS -gt 0 ]; then
+          echo "❌ Version verification failed with $ERRORS error(s)"
+          exit 1
+        else
+          echo "✅ All version updates verified successfully!"
+          echo ""
+          echo "Git diff:"
+          git diff
+        fi
 
     - name: Generate changelog
       id: changelog
@@ -69,8 +138,8 @@ jobs:
       run: |
         git config user.name "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
-        git add -A
-        git commit -m "Bump version to ${{ inputs.version }}" || echo "No changes to commit"
+        git add setup.py src/asmr18/__init__.py src/asmr18/cli.py
+        git commit -m "chore: bump version to ${{ inputs.version }}" || echo "No changes to commit"
         git push
 
     - name: Create Git tag
