@@ -294,33 +294,33 @@ jobs:
         name: Release v${{ needs.update-version.outputs.version }}
         body: |
           ## ASMR18 Downloader v${{ needs.update-version.outputs.version }}
-
+          
           ### Installation Options
-
+          
           #### Option 1: pip (Recommended)
 ```bash
           pip install asmr18
 ```
-
+          
           #### Option 2: Quick Install Script (Linux/macOS)
 ```bash
           curl -sSL https://raw.githubusercontent.com/${{ github.repository }}/main/install.sh | bash
 ```
-
+          
           #### Option 3: Standalone Executables
           Download the pre-built executable for your platform:
           - **Linux**: `asmr18-linux`
           - **macOS**: `asmr18-macos`
           - **Windows**: `asmr18-windows.exe`
-
+          
           Make it executable (Linux/macOS):
 ```bash
           chmod +x asmr18-linux
           ./asmr18-linux --version
 ```
-
+          
           Windows users can run `asmr18-windows.exe` directly.
-
+          
           ### Quick Start
 ```bash
           asmr18 --version
@@ -328,16 +328,16 @@ jobs:
           asmr18 "URL" -o /path/to/output
           asmr18 --help
 ```
-
+          
           ### What's Included
           - Python wheel (`.whl`) and source distribution (`.tar.gz`)
           - Standalone executables for Linux, macOS, and Windows
           - Installation scripts (`install.sh`, `uninstall.sh`)
           - Documentation (`README.md`)
-
+          
           ### Full Changelog
           See the [commit history](https://github.com/${{ github.repository }}/commits/v${{ needs.update-version.outputs.version }}) for detailed changes.
-
+          
           ---
           **Requirements**: Python 3.8+ (for pip installation) or use standalone executables
           **Recommended**: ffmpeg for faster downloads
