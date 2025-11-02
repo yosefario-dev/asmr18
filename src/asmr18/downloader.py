@@ -115,14 +115,12 @@ class ASMR18Downloader:
         sp=BeautifulSoup(html,'html.parser');ch=[]
         cd=sp.find('div',id='chapter')
         if cd:
-            for lk in cd.find_all('a',href='#'):
-                tv=lk.get('data-value');ct=lk.get_text().strip()
-                mt=re.match(r'(\d+)\.(.+)',ct)
-                if mt:
-                    cn=mt.group(1);ct=mt.group(2).strip()
-                    tm=re.search(r'(\d{2}):(\d{2}):(\d{2})',ct)
-                    ts=f"{tm.group(1)}:{tm.group(2)}:{tm.group(3)}"if tm else None
-                    ch.append({'number':cn,'title':ct,'time_seconds':int(tv)if tv else None,'timestamp':ts})
+            for i,lk in enumerate(cd.find_all('a',href='#'),1):
+                tv=lk.get('data-value');ts_span=lk.find('span')
+                ts=ts_span.get_text().strip()if ts_span else None
+                ft=lk.get_text(separator='',strip=True)
+                tl=ft.replace(ts,'').strip()if ts else ft
+                ch.append({'number':str(i),'title':' '.join(tl.split()),'time_seconds':int(tv)if tv and tv.isdigit()else None,'timestamp':ts})
         self.chapters=ch;return ch
     def extract_videos(self,html:str)->List[Dict]:
         self.log("Extracting videos")
