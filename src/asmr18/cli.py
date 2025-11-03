@@ -41,25 +41,57 @@ def update_package(force=False):
             venv_python=install_dir/"venv"/"bin"/"python";venv_pip=install_dir/"venv"/"bin"/"pip"
             if venv_python.exists()and venv_pip.exists():
                 click.echo(f"{Fore.CYAN}[*]{Style.RESET_ALL} Updating package in virtual environment...")
-                cmd=[str(venv_pip),"install","--upgrade","asmr18"]
+                
+                # First uninstall existing version (including editable installs)
+                click.echo(f"{Fore.CYAN}[*]{Style.RESET_ALL} Removing existing installation...")
+                uninstall_cmd=[str(venv_pip),"uninstall","-y","asmr18"]
+                if needs_sudo:uninstall_cmd=["sudo"]+uninstall_cmd
+                subprocess.run(uninstall_cmd,capture_output=True,text=True)
+                
+                # Now install the new version fresh (not editable)
+                click.echo(f"{Fore.CYAN}[*]{Style.RESET_ALL} Installing version {nv}...")
+                cmd=[str(venv_pip),"install","--upgrade","--no-cache-dir","asmr18"]
                 if needs_sudo:click.echo(f"{Fore.YELLOW}[!]{Style.RESET_ALL} System installation detected - sudo required");cmd=["sudo"]+cmd
                 result=subprocess.run(cmd,capture_output=True,text=True)
-                if result.returncode==0:click.echo(f"{Fore.GREEN}[+]{Style.RESET_ALL} Successfully updated to v{nv}!");click.echo(f"{Fore.CYAN}[*]{Style.RESET_ALL} Restart your terminal or run the command again to use the new version")
+                if result.returncode==0:
+                    click.echo(f"{Fore.GREEN}[+]{Style.RESET_ALL} Successfully updated to v{nv}!")
+                    click.echo(f"{Fore.CYAN}[*]{Style.RESET_ALL} Run: {Fore.GREEN}hash -r{Style.RESET_ALL} to refresh your shell, or restart your terminal")
                 else:
                     click.echo(f"{Fore.RED}[-]{Style.RESET_ALL} Update failed!")
                     if result.stderr:click.echo(f"{Fore.RED}Error:{Style.RESET_ALL} {result.stderr}")
                     click.echo(f"\n{Fore.CYAN}[*]{Style.RESET_ALL} Trying alternative update method...")
-                    alt_cmd=[str(venv_pip),"install","--upgrade","git+https://github.com/yosefario-dev/asmr18.git"]
+                    alt_cmd=[str(venv_pip),"install","--upgrade","--no-cache-dir","git+https://github.com/yosefario-dev/asmr18.git"]
                     if needs_sudo:alt_cmd=["sudo"]+alt_cmd
                     alt_result=subprocess.run(alt_cmd,capture_output=True,text=True)
-                    if alt_result.returncode==0:click.echo(f"{Fore.GREEN}[+]{Style.RESET_ALL} Successfully updated to v{nv}!")
-                    else:click.echo(f"{Fore.RED}[-]{Style.RESET_ALL} Alternative update also failed");click.echo(f"\n{Fore.YELLOW}Manual update required:{Style.RESET_ALL}");click.echo("  Run the install script again:");click.echo("  curl -sSL https://raw.githubusercontent.com/yosefario-dev/asmr18/main/install.sh | sh")
+                    if alt_result.returncode==0:
+                        click.echo(f"{Fore.GREEN}[+]{Style.RESET_ALL} Successfully updated to v{nv}!")
+                        click.echo(f"{Fore.CYAN}[*]{Style.RESET_ALL} Run: {Fore.GREEN}hash -r{Style.RESET_ALL} to refresh your shell")
+                    else:
+                        click.echo(f"{Fore.RED}[-]{Style.RESET_ALL} Alternative update also failed")
+                        click.echo(f"\n{Fore.YELLOW}Manual update required:{Style.RESET_ALL}")
+                        click.echo("  Run the install script again:")
+                        click.echo("  curl -sSL https://raw.githubusercontent.com/yosefario-dev/asmr18/main/install.sh | sh")
             else:raise FileNotFoundError("Virtual environment not found")
         else:
-            click.echo(f"{Fore.CYAN}[*]{Style.RESET_ALL} Updating via pip...");result=subprocess.run(["pip","install","--upgrade","asmr18"],capture_output=True,text=True)
-            if result.returncode==0:click.echo(f"{Fore.GREEN}[+]{Style.RESET_ALL} Successfully updated to v{nv}!");click.echo(f"{Fore.CYAN}[*]{Style.RESET_ALL} Restart your terminal or run the command again to use the new version")
-            else:click.echo(f"{Fore.RED}[-]{Style.RESET_ALL} Update failed!");click.echo(f"\n{Fore.YELLOW}Manual update:{Style.RESET_ALL}");click.echo("  pip install --upgrade asmr18");click.echo("  OR");click.echo("  curl -sSL https://raw.githubusercontent.com/yosefario-dev/asmr18/main/install.sh | sh")
-    except Exception as e:click.echo(f"{Fore.RED}[-]{Style.RESET_ALL} Update failed: {e}");click.echo(f"\n{Fore.YELLOW}Manual update:{Style.RESET_ALL}");click.echo("  curl -sSL https://raw.githubusercontent.com/yosefario-dev/asmr18/main/install.sh | sh")
+            click.echo(f"{Fore.CYAN}[*]{Style.RESET_ALL} Updating via pip...")
+            # First uninstall existing version
+            subprocess.run(["pip","uninstall","-y","asmr18"],capture_output=True,text=True)
+            # Install fresh version
+            result=subprocess.run(["pip","install","--upgrade","--no-cache-dir","asmr18"],capture_output=True,text=True)
+            if result.returncode==0:
+                click.echo(f"{Fore.GREEN}[+]{Style.RESET_ALL} Successfully updated to v{nv}!")
+                click.echo(f"{Fore.CYAN}[*]{Style.RESET_ALL} Run: {Fore.GREEN}hash -r{Style.RESET_ALL} to refresh your shell")
+            else:
+                click.echo(f"{Fore.RED}[-]{Style.RESET_ALL} Update failed!")
+                click.echo(f"\n{Fore.YELLOW}Manual update:{Style.RESET_ALL}")
+                click.echo("  pip uninstall asmr18")
+                click.echo("  pip install --upgrade asmr18")
+                click.echo("  OR")
+                click.echo("  curl -sSL https://raw.githubusercontent.com/yosefario-dev/asmr18/main/install.sh | sh")
+    except Exception as e:
+        click.echo(f"{Fore.RED}[-]{Style.RESET_ALL} Update failed: {e}")
+        click.echo(f"\n{Fore.YELLOW}Manual update:{Style.RESET_ALL}")
+        click.echo("  curl -sSL https://raw.githubusercontent.com/yosefario-dev/asmr18/main/install.sh | sh")
 def load_config()->dict:
     if CONFIG_FILE.exists():
         try:
