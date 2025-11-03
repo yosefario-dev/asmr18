@@ -66,12 +66,15 @@ info "Installing to: $IDIR"
 mkdir -p "$IDIR" "$BDIR"
 
 if [ "$INSTALL_MODE" = "local" ]; then
-    info "Copying source files..."
-    cp -r "$SCRIPT_DIR"/* "$IDIR/" 2>/dev/null || true
+    info "Building package from source..."
+    cd "$SCRIPT_DIR"
     
-    cd "$IDIR"
+    # Build the package first
+    python3 -m pip install --upgrade build >/dev/null 2>&1
+    python3 -m build >/dev/null 2>&1
     
     info "Creating virtual environment..."
+    cd "$IDIR"
     python3 -m venv venv
     
     info "Activating virtual environment..."
@@ -80,17 +83,15 @@ if [ "$INSTALL_MODE" = "local" ]; then
     info "Upgrading pip..."
     pip install --upgrade pip >/dev/null 2>&1
     
-    info "Installing dependencies..."
-    pip install -r requirements.txt >/dev/null 2>&1
-    
-    info "Installing package..."
-    pip install -e . >/dev/null 2>&1
+    info "Installing package (non-editable)..."
+    # Install the built wheel, not editable!
+    pip install "$SCRIPT_DIR"/dist/*.whl >/dev/null 2>&1
     
     info "Creating command wrapper..."
     cat > "$BDIR/asmr18" << 'EOF'
 #!/bin/bash
 source "$IDIR/venv/bin/activate"
-python -m asmr18.cli "$@"
+asmr18 "$@"
 EOF
     sed -i "s|\$IDIR|$IDIR|g" "$BDIR/asmr18"
     
@@ -122,7 +123,7 @@ else
             echo "   bash install.sh"
             echo ""
             echo "2. Install manually:"
-            echo "   pip install asmr18-downloader"
+            echo "   pip install asmr18"
             exit 1
         fi
     fi
@@ -193,5 +194,5 @@ echo "  Command: $BDIR/asmr18"
 if [ "$INSTALL_MODE" = "pip" ]; then
     echo "  Source: PyPI/pip"
 else
-    echo "  Source: Local files"
+    echo "  Source: Local files (non-editable)"
 fi
