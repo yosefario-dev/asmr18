@@ -6,7 +6,7 @@ from asmr18.database import DownloadDB
 from asmr18.logger import Logger
 from asmr18.utils import check_for_updates,create_archive,format_bytes,format_time
 init(autoreset=True)
-__version__="0.1.3"
+__version__="0.1.5"
 CONFIG_DIR=Path.home()/".asmr18"
 CONFIG_FILE=CONFIG_DIR/"config.yaml"
 UPDATE_CHECK_FILE=CONFIG_DIR/"last_update_check"
