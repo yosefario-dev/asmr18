@@ -4,7 +4,7 @@ readme=Path(__file__).parent/"README.md"
 long_desc=readme.read_text(encoding="utf-8")if readme.exists()else""
 setup(
     name="asmr18",
-    version="0.1.2",
+    version="0.1.3",
     author="Yosefario Dev",
     description="Downloader for ASMR18.fans",
     long_description=long_desc,
