@@ -163,7 +163,7 @@ jobs:
 
     steps:
     - name: Download updated source
-      uses: actions/download-artifact@v7
+      uses: actions/download-artifact@v8
       with:
         name: updated-source
         path: .
@@ -222,7 +222,7 @@ jobs:
 
     steps:
     - name: Download updated source
-      uses: actions/download-artifact@v7
+      uses: actions/download-artifact@v8
       with:
         name: updated-source
         path: .
@@ -287,7 +287,7 @@ jobs:
 
     steps:
     - name: Download distributions
-      uses: actions/download-artifact@v7
+      uses: actions/download-artifact@v8
       with:
         name: distributions
         path: dist/
@@ -309,31 +309,31 @@ jobs:
 
     steps:
     - name: Download updated source
-      uses: actions/download-artifact@v7
+      uses: actions/download-artifact@v8
       with:
         name: updated-source
         path: .
 
     - name: Download distributions
-      uses: actions/download-artifact@v7
+      uses: actions/download-artifact@v8
       with:
         name: distributions
         path: dist/
 
     - name: Download Linux executable
-      uses: actions/download-artifact@v7
+      uses: actions/download-artifact@v8
       with:
         name: asmr18-linux
         path: executables/linux/
 
     - name: Download macOS executable
-      uses: actions/download-artifact@v7
+      uses: actions/download-artifact@v8
       with:
         name: asmr18-macos
         path: executables/macos/
 
     - name: Download Windows executable
-      uses: actions/download-artifact@v7
+      uses: actions/download-artifact@v8
       with:
         name: asmr18-windows
         path: executables/windows/
@@ -446,7 +446,7 @@ jobs:
         python-version: ${{ matrix.python-version }}
 
     - name: Download distributions
-      uses: actions/download-artifact@v7
+      uses: actions/download-artifact@v8
       with:
         name: distributions
         path: dist/
@@ -487,7 +487,7 @@ jobs:
 
     steps:
     - name: Download executable
-      uses: actions/download-artifact@v7
+      uses: actions/download-artifact@v8
       with:
         name: ${{ matrix.artifact-name }}
         path: .
