@@ -357,7 +357,7 @@ jobs:
         ls -lh release-files/
 
     - name: Create GitHub Release
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v3
       with:
         tag_name: v${{ needs.update-version.outputs.version }}
         name: Release v${{ needs.update-version.outputs.version }}
